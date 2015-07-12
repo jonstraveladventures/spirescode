@@ -1,0 +1,84 @@
+Clarkson = 
+  Import["http://inspirehep.net/search?ln=en&ln=en&p=author%3AC.\
+Clarkson.1&of=htcv&action_search=Search&sf=&so=d&rm=&rg=250&sc=0"];
+Murugan = 
+  Import["http://inspirehep.net/search?ln=en&ln=en&p=f+a+murugan%2Cj&\
+of=htcv&action_search=Search&sf=earliestdate&so=d&rm=&rg=250&sc=0"];
+Ellis = Import[
+   "http://inspirehep.net/search?ln=en&ln=en&p=find+a+ellis%2C+g+f+r&\
+of=htcv&action_search=Search&sf=earliestdate&so=d&rm=&rg=250&sc=0"];
+Shock = Import[
+   "http://inspirehep.net/search?ln=en&ln=en&p=author%3A+shock&of=\
+htcv&action_search=Search&sf=&so=d&rm=&rg=50&sc=0"];
+Weltman = 
+  Import["http://inspirehep.net/search?ln=en&ln=en&p=exactauthor%3AA.\
+Weltman.1&of=htcv&action_search=Search&sf=&so=d&rm=&rg=250&sc=0"];
+
+strtrim[str_] := StringTrim[str]
+strtrim[str_, txt_] := StringTrim[str, txt]
+Attributes[strtrim] = {Listable};
+
+(*This can also work for people's papers in the ADS database*)
+
+findcollabsADS[totalname_] := 
+ Module[{p1s, p2s, p3s, p4s, p5s}, 
+  p1s = StringPosition[totalname, 
+    RegularExpression["\n[\n.;\\w\\s,]+;"]];
+  p2s = {#[[1]], #[[2]] + 
+       StringPosition[StringTake[totalname, #[[2]] ;;], "\n"][[1, 
+         1]] - 2} & /@ p1s;
+  p3s = StringTrim[
+      StringSplit[StringTrim[#], 
+       ";"]] & /@ (StringTake[totalname, #[[1]] ;; #[[2]]] & /@ p2s);
+  p4s = (Select[StringSplit[#, ","] & /@ #, Length[#] == 2 &]) & /@ 
+    p3s;
+  (StringTake[StringTrim[#[[2]]], 1] <> ". " <> #[[1]] & /@ #) & /@ 
+   p4s]
+
+
+findcollaborators[totalname_] := 
+ Module[{allcollabs, authors1, allcollabs2, who}, 
+  who = StringSplit[totalname][[2]] // ToExpression;
+  If[StringTake[who, ;; 7] == "Sign on", 
+   Return[findcollabsADS[who]]];
+  allcollabs = 
+   strtrim[strtrim[
+     StringSplit[
+      StringTake[
+       StringTrim[
+        StringCases[who, 
+         RegularExpression["\n[\\s]*By[\\w,.\\s'-]+.\n"]]], 4 ;; -2], 
+      ","]], " et al."];
+  allcollabs = Union[Join[{totalname}, #]] & /@ allcollabs;
+  authors1 = Flatten[allcollabs] // Union;
+  allcollabs2 = 
+   Union[#] & /@ (allcollabs /. (({# -> 
+             StringTake[#, 1] <> ". " <> 
+              StringSplit[#, " "][[-1]]} & /@ authors1) // Flatten))]
+
+
+(*author lists from all papers*)
+findcollaborators["Jonathan Shock"]
+
+
+authors = {"George Ellis", "Amanda Weltman", "Jeff Murugan", 
+   "Chris Clarkson", "Jonathan Shock"};
+(*These are the total number of papers-note that this doesn't \
+necessarily pick up all of them but should get the majority which I \
+think is fine for the needs of this exercise.*)
+vs = {#, \
+(findcollaborators[#] // Length)} & /@ authors
+
+
+DeleteCases[
+ Flatten[Table[
+   If[m > n, {authors[[m]], authors[[n]], 
+     Length[Cases[
+       findcollaborators[authors[[m]]], {___, 
+        StringTake[authors[[n]], 1] <> ". " <> 
+         StringSplit[authors[[n]], " "][[-1]], ___}]]}, Null], {m, 
+    Length[authors]}, {n, Length[authors]}], 1], Null | {_, _, 0}]
+Graph[authors, #[[1]] <-> #[[2]] & /@ %, VertexLabels -> "Name", 
+ EdgeLabels -> (#[[1]] <-> #[[2]] -> #[[3]] & /@ %), 
+ VertexSize -> Evaluate[(#[[1]] -> #[[2]]/300) & /@ vs], 
+ ImagePadding -> 100, ImageSize -> 600]
